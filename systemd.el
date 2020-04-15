@@ -130,7 +130,7 @@
 (defconst systemd-autoload-regexp
   (eval-when-compile
     (rx (+? (any "a-zA-Z0-9-_.@\\")) "."
-        (or "automount" "busname" "mount" "service" "slice"
+        (or "automount" "busname" "mount" "path" "service" "slice"
             "socket" "swap" "target" "timer" "link" "netdev" "network")
         string-end))
   "Regexp for file buffers in which to autoload `systemd-mode'.")
@@ -140,7 +140,7 @@
   (eval-when-compile
     (rx ".#"
         (or (and (+? (any "a-zA-Z0-9-_.@\\")) "."
-                 (or "automount" "busname" "mount" "service" "slice"
+                 (or "automount" "busname" "mount" "path" "service" "slice"
                      "socket" "swap" "target" "timer" "link" "netdev" "network"))
             "override.conf")
         (= 16 (char hex-digit)) string-end))
@@ -233,21 +233,32 @@ file, defaulting to the link under point, if any."
       (if sectionp systemd-network-sections systemd-network-directives))
      (t (if sectionp systemd-unit-sections systemd-unit-directives)))))
 
+(defun systemd-env-variable-table (&rest _ignore)
+  "Completion table with environment variables."
+  (mapcar (lambda (x) (substring x 0 (string-match "=" x))) process-environment))
+
 (defun systemd-complete-at-point ()
   "Complete the symbol at point."
-  (let ((bounds (bounds-of-thing-at-point 'symbol)))
-    (list (or (car bounds) (point))
-          (or (cdr bounds) (point))
-          (completion-table-dynamic #'systemd-completion-table))))
+  (when-let* ((bounds (bounds-of-thing-at-point 'symbol)))
+    (list (car bounds) (cdr bounds)
+          (completion-table-in-turn
+           (completion-table-dynamic #'systemd-completion-table)
+           (completion-table-dynamic #'systemd-env-variable-table))
+          :exit-function
+          (lambda (_ finished)
+            (when (and (not (systemd-buffer-section-p))
+                       (memq finished '(sole finished)))
+              (insert "="))))))
 
-(defun systemd-company-backend (command &optional arg &rest ignored)
-  "Backend for `company-mode' in `systemd-mode' buffers."
-  (interactive (list 'interactive))
-  (pcase command
-    (`interactive (company-begin-backend 'systemd-company-backend))
-    (`prefix (and (eq major-mode 'systemd-mode) (company-grab-symbol)))
-    (`candidates (all-completions arg (systemd-completion-table nil)))
-    (`post-completion (if (not (systemd-buffer-section-p)) (insert "=")))))
+;; Note: company-capf can take over here
+;; (defun systemd-company-backend (command &optional arg &rest ignored)
+;;   "Backend for `company-mode' in `systemd-mode' buffers."
+;;   (interactive (list 'interactive))
+;;   (pcase command
+;;     (`interactive (company-begin-backend 'systemd-company-backend))
+;;     (`prefix (and (eq major-mode 'systemd-mode) (company-grab-symbol)))
+;;     (`candidates (all-completions arg (systemd-completion-table nil)))
+;;     (`post-completion (if (not (systemd-buffer-section-p)) (insert "=")))))
 
 (defun systemd-construct-start-p ()
   "Return non-nil if the current line is the first in a multi-line construct."
@@ -410,7 +421,9 @@ Key bindings:
   (set-keymap-parent systemd-mode-map nil)
   (conf-mode-initialize systemd-comment-start)
   (setq-local auto-fill-inhibit-regexp "^[ \t]*?[^;#]")
-  (add-hook 'company-backends #'systemd-company-backend nil 'local)
+  (make-local-variable 'company-backends)
+  (cl-pushnew 'company-capf company-backends)
+  ;; (add-hook 'company-backends #'systemd-company-backend)
   (add-hook 'completion-at-point-functions #'systemd-complete-at-point nil t)
   (add-hook 'font-lock-extend-region-functions
             'systemd-font-lock-extend-region nil t)
