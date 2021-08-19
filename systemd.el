@@ -1,6 +1,6 @@
 ;;; systemd.el --- Major mode for editing systemd units -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2019  Mark Oteiza <mvoteiza@udel.edu>
+;; Copyright (C) 2014-2021  Mark Oteiza <mvoteiza@udel.edu>
 
 ;; Author: Mark Oteiza <mvoteiza@udel.edu>
 ;; Version: 1.6
@@ -128,28 +128,25 @@
 
 ;;;###autoload
 (defconst systemd-autoload-regexp
-  (eval-when-compile
-    (rx (+? (any "a-zA-Z0-9-_.@\\")) "."
-        (or "automount" "busname" "mount" "path" "service" "slice"
-            "socket" "swap" "target" "timer" "link" "netdev" "network")
-        string-end))
+  (rx (+? (any "a-zA-Z0-9-_.@\\")) "."
+      (or "automount" "busname" "mount" "path" "service" "slice"
+          "socket" "swap" "target" "timer" "link" "netdev" "network")
+      string-end)
   "Regexp for file buffers in which to autoload `systemd-mode'.")
 
 ;;;###autoload
 (defconst systemd-tempfn-autoload-regexp
-  (eval-when-compile
-    (rx ".#"
-        (or (and (+? (any "a-zA-Z0-9-_.@\\")) "."
-                 (or "automount" "busname" "mount" "path" "service" "slice"
-                     "socket" "swap" "target" "timer" "link" "netdev" "network"))
-            "override.conf")
-        (= 16 (char hex-digit)) string-end))
+  (rx ".#"
+      (or (and (+? (any "a-zA-Z0-9-_.@\\")) "."
+               (or "automount" "busname" "mount" "path" "service" "slice"
+                   "socket" "swap" "target" "timer" "link" "netdev" "network"))
+          "override.conf")
+      (= 16 (char hex-digit)) string-end)
   "Regexp for temp file buffers in which to autoload `systemd-mode'.")
 
 ;;;###autoload
 (defconst systemd-dropin-autoload-regexp
-  (eval-when-compile
-    (rx "/systemd/" (+? anything) ".d/" (+? (not (any ?/))) ".conf" string-end))
+  (rx "/systemd/" (+? anything) ".d/" (+? (not (any ?/))) ".conf" string-end)
   "Regexp for dropin config file buffers in which to autoload `systemd-mode'.")
 
 (defun systemd-get-value (start)
@@ -214,13 +211,12 @@ file, defaulting to the link under point, if any."
 
 (defun systemd-file-network-p (filename)
   "Return non-nil if FILENAME has a network-type extension, otherwise nil."
-  (string-match-p (eval-when-compile
-                    (rx "." (or "link" "netdev" "network") string-end))
+  (string-match-p (rx "." (or "link" "netdev" "network") string-end)
                   filename))
 
 (defun systemd-file-nspawn-p (filename)
   "Return non-nil if FILENAME has an nspawn extension, otherwise nil."
-  (string-match-p (eval-when-compile (rx ".nspawn" string-end)) filename))
+  (string-match-p (rx ".nspawn" string-end) filename))
 
 (defun systemd-completion-table (&rest _ignore)
   "Return a list of completion candidates."
@@ -333,7 +329,7 @@ See `font-lock-keywords' and (info \"(elisp) Search-based Fontification\")."
         (set-match-data res)))))
 
 (defconst systemd-font-lock-keywords-1
-  `((systemd-section-matcher 1 'font-lock-type-face)
+  '((systemd-section-matcher 1 'font-lock-type-face)
     (systemd-key-matcher 1 'font-lock-keyword-face))
   "Minimal expressions to highlight in `systemd-mode'.")
 
@@ -351,7 +347,7 @@ See `font-lock-keywords' and (info \"(elisp) Search-based Fontification\")."
      ("\\$[A-Z_]+\\>"
       (systemd-value-extend-region) nil (0 'font-lock-variable-name-face))
      ;; specifiers
-     ("%[bcCEfhHiIjJLmnNpPrRsStTuUvV%]"
+     ("%[abBCEfgGhHiIjJlLmnNopPrRsStTuUvVw%]"
       (systemd-value-extend-region) nil (0 'font-lock-constant-face))))
   "Extended expressions to highlight in `systemd-mode'.")
 
