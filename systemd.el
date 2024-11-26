@@ -1,9 +1,9 @@
 ;;; systemd.el --- Major mode for editing systemd units -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2021  Mark Oteiza <mvoteiza@udel.edu>
+;; Copyright (C) 2014-2023  Mark Oteiza <mvoteiza@udel.edu>
 
 ;; Author: Mark Oteiza <mvoteiza@udel.edu>
-;; Version: 1.6
+;; Version: 1.6.1
 ;; Package-Requires: ((emacs "24.4"))
 ;; Keywords: tools, unix
 
@@ -33,7 +33,8 @@
 ;; network configuration.  Both a completer for
 ;; `completion-at-point-functions' and a company backend are provided.
 ;; The latter can be enabled by adding `company-mode' to
-;; `systemd-mode-hook'.
+;; `systemd-mode-hook' and adding `systemd-company-backend' to
+;; `company-backends'.
 
 ;;; Code:
 
@@ -49,7 +50,7 @@
 
 (defgroup systemd ()
   "Major mode for editing systemd units."
-  :link '(url-link "http://www.freedesktop.org/wiki/Software/systemd/")
+  :link '(url-link "https://www.freedesktop.org/wiki/Software/systemd/")
   :group 'tools)
 
 (defcustom systemd-browse-url-function 'browse-url
@@ -235,32 +236,22 @@ file, defaulting to the link under point, if any."
       (if sectionp systemd-network-sections systemd-network-directives))
      (t (if sectionp systemd-unit-sections systemd-unit-directives)))))
 
-(defun systemd-env-variable-table (&rest _ignore)
-  "Completion table with environment variables."
-  (mapcar (lambda (x) (substring x 0 (string-match "=" x))) process-environment))
-
 (defun systemd-complete-at-point ()
   "Complete the symbol at point."
-  (when-let* ((bounds (bounds-of-thing-at-point 'symbol)))
-    (list (car bounds) (cdr bounds)
-          (completion-table-in-turn
-           (completion-table-dynamic #'systemd-completion-table)
-           (completion-table-dynamic #'systemd-env-variable-table))
-          :exit-function
-          (lambda (_ finished)
-            (when (and (not (systemd-buffer-section-p))
-                       (memq finished '(sole finished)))
-              (insert "="))))))
+  (let ((bounds (bounds-of-thing-at-point 'symbol)))
+    (list (or (car bounds) (point))
+          (or (cdr bounds) (point))
+          (completion-table-dynamic #'systemd-completion-table)
+          :exclusive 'no)))
 
-;; Note: company-capf can take over here
-;; (defun systemd-company-backend (command &optional arg &rest ignored)
-;;   "Backend for `company-mode' in `systemd-mode' buffers."
-;;   (interactive (list 'interactive))
-;;   (pcase command
-;;     (`interactive (company-begin-backend 'systemd-company-backend))
-;;     (`prefix (and (eq major-mode 'systemd-mode) (company-grab-symbol)))
-;;     (`candidates (all-completions arg (systemd-completion-table nil)))
-;;     (`post-completion (if (not (systemd-buffer-section-p)) (insert "=")))))
+(defun systemd-company-backend (command &optional arg &rest _ignored)
+  "Backend for `company-mode' in `systemd-mode' buffers."
+  (interactive (list 'interactive))
+  (pcase command
+    (`interactive (company-begin-backend 'systemd-company-backend))
+    (`prefix (and (eq major-mode 'systemd-mode) (company-grab-symbol)))
+    (`candidates (all-completions arg (systemd-completion-table nil)))
+    (`post-completion (if (not (systemd-buffer-section-p)) (insert "=")))))
 
 (defun systemd-construct-start-p ()
   "Return non-nil if the current line is the first in a multi-line construct."
@@ -423,9 +414,6 @@ Key bindings:
   (set-keymap-parent systemd-mode-map nil)
   (conf-mode-initialize systemd-comment-start)
   (setq-local auto-fill-inhibit-regexp "^[ \t]*?[^;#]")
-  (make-local-variable 'company-backends)
-  (cl-pushnew 'company-capf company-backends)
-  ;; (add-hook 'company-backends #'systemd-company-backend)
   (add-hook 'completion-at-point-functions #'systemd-complete-at-point nil t)
   (add-hook 'font-lock-extend-region-functions
             'systemd-font-lock-extend-region nil t)
